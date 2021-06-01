@@ -8,13 +8,13 @@ use std::ops::Deref;
 
 // use libc::{c_int, c_char};
 
-use parasail_sys::{ParasailMatrix, parasail_matrix_create, parasail_matrix_free,
+use parasail_sys::{parasail_matrix, parasail_matrix_create, parasail_matrix_free,
                    parasail_matrix_lookup};
 
 /// A substitution matrix to use when aligning DNA or protein. Can be reused in many profiles.
 pub struct Matrix {
     matrix_type: MatrixType,
-    internal_rep: *const ParasailMatrix,
+    internal_rep: *const parasail_matrix,
 }
 
 unsafe impl Send for Matrix {}
@@ -36,7 +36,7 @@ impl Matrix {
         unsafe {
             // we can pass this pointer because it will outlive this unsafe block
             // parasail won't keep a hold of it after the lookup
-            let matrix: *const ParasailMatrix = match matrix_type {
+            let matrix: *const parasail_matrix = match matrix_type {
                 MatrixType::Identity => {
                     let alphabet = &CString::new("ARNDCQEGHILKMFPSTWYVBZX")
                                         .expect("An internal error has occurred (creating \
@@ -147,9 +147,9 @@ impl Matrix {
 
 #[doc(hidden)]
 impl Deref for Matrix {
-    type Target = *const ParasailMatrix;
+    type Target = *const parasail_matrix;
 
-    fn deref(&self) -> &(*const ParasailMatrix) {
+    fn deref(&self) -> &(*const parasail_matrix) {
         &self.internal_rep
     }
 }
@@ -158,11 +158,11 @@ impl Deref for Matrix {
 impl Drop for Matrix {
     fn drop(&mut self) {
         if let MatrixType::Identity = self.matrix_type {
-            unsafe { parasail_matrix_free(self.internal_rep as *mut ParasailMatrix) }
+            unsafe { parasail_matrix_free(self.internal_rep as *mut parasail_matrix) }
         }
 
         if let MatrixType::IdentityWithPenalty = self.matrix_type {
-            unsafe { parasail_matrix_free(self.internal_rep as *mut ParasailMatrix) }
+            unsafe { parasail_matrix_free(self.internal_rep as *mut parasail_matrix) }
         }
     }
 }
