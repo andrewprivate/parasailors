@@ -8,7 +8,8 @@ use libc::c_int;
 use parasail_sys::{parasail_result_free, parasail_nw_striped_profile_sat,
                    parasail_sg_striped_profile_sat, parasail_sw_striped_profile_sat,
                    parasail_sg_stats_striped_sat, parasail_sw_stats_striped_sat,
-                   parasail_sw_striped_sat};
+                   parasail_sw_striped_sat,
+                   parasail_result_get_score, parasail_result_get_similar, parasail_result_get_matches, parasail_result_get_length};
 use matrix::Matrix;
 use profile::Profile;
 
@@ -217,10 +218,10 @@ pub fn semi_global_alignment_stats(query_sequence: &[u8],
                                                    gap_extend_cost,
                                                    **substitution_matrix);
 
-        let score = (*result).score as i64;
-        let num_matches = (*result).matches as u64;
-        let num_subs = (*result).similar as u64;
-        let align_len = (*result).length as usize;
+        let score = parasail_result_get_score(result) as i64;
+        let num_matches = parasail_result_get_matches(result) as u64;
+        let num_subs = parasail_result_get_similar(result) as u64;
+        let align_len = parasail_result_get_length(result) as usize;
 
         // calculate start from end
         let query_end = (*result).end_query as usize + 1;
@@ -273,10 +274,10 @@ pub fn local_alignment_stats(query_sequence: &[u8],
                                                    gap_extend_cost,
                                                    **substitution_matrix);
 
-        let score = (*result).score as i64;
-        let num_matches = (*result).matches as u64;
-        let num_subs = (*result).similar as u64;
-        let align_len = (*result).length as usize;
+        let score = parasail_result_get_score(result) as i64;
+        let num_matches = parasail_result_get_matches(result) as u64;
+        let num_subs = parasail_result_get_similar(result) as u64;
+        let align_len = parasail_result_get_length(result) as usize;
 
         // calculate start from end
         let query_end = (*result).end_query as usize + 1;
