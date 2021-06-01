@@ -5,12 +5,14 @@
 
 use libc::c_int;
 
-use parasail_sys::{parasail_result_free, parasail_nw_striped_profile_sat,
-                   parasail_sg_striped_profile_sat, parasail_sw_striped_profile_sat,
-                   parasail_sg_stats_striped_sat, parasail_sw_stats_striped_sat,
-                   parasail_sw_striped_sat,
-                   parasail_result_get_score, parasail_result_get_similar, parasail_result_get_matches, parasail_result_get_length};
 use matrix::Matrix;
+use parasail_sys::{
+    parasail_nw_striped_profile_sat, parasail_result_free, parasail_result_get_length,
+    parasail_result_get_matches, parasail_result_get_score, parasail_result_get_similar,
+    parasail_sg_qx_stats_striped_sat, parasail_sg_qx_striped_profile_sat,
+    parasail_sg_stats_striped_sat, parasail_sg_striped_profile_sat, parasail_sw_stats_striped_sat,
+    parasail_sw_striped_profile_sat, parasail_sw_striped_sat,
+};
 use profile::Profile;
 
 /// Provides a score for global pairwise alignment, using a vectorized version of [Needleman-Wunsch](https://en.wikipedia.org/wiki/Needleman%E2%80%93Wunsch_algorithm).
@@ -31,18 +33,20 @@ use profile::Profile;
 /// let reference = b"AAAAAAAAAACCCCCCCCCCGGGGGGGGGGTTTTTCCTTTTTTNNNNNNNNN";
 /// assert_eq!(48, global_alignment_score(&profile_ident, reference, 1, 1));
 /// ```
-pub fn global_alignment_score(query_profile: &Profile,
-                              database_sequence: &[u8],
-                              open_cost: i32,
-                              gap_extend_cost: i32)
-                              -> i32 {
-
+pub fn global_alignment_score(
+    query_profile: &Profile,
+    database_sequence: &[u8],
+    open_cost: i32,
+    gap_extend_cost: i32,
+) -> i32 {
     unsafe {
-        let result = parasail_nw_striped_profile_sat(**query_profile,
-                                                     database_sequence.as_ptr(),
-                                                     database_sequence.len() as c_int,
-                                                     open_cost,
-                                                     gap_extend_cost);
+        let result = parasail_nw_striped_profile_sat(
+            **query_profile,
+            database_sequence.as_ptr(),
+            database_sequence.len() as c_int,
+            open_cost,
+            gap_extend_cost,
+        );
         let score = (*result).score;
         parasail_result_free(result);
         score
@@ -70,18 +74,41 @@ pub fn global_alignment_score(query_profile: &Profile,
 /// let reference = b"AAAAAAAAAACCCCCCCCCCGGGGGGGGGGTTTTT";
 /// assert_eq!(35, semi_global_alignment_score(&profile_ident, reference, 1, 1));
 /// ```
-pub fn semi_global_alignment_score(query_profile: &Profile,
-                                   database_sequence: &[u8],
-                                   open_cost: i32,
-                                   gap_extend_cost: i32)
-                                   -> i32 {
-
+pub fn semi_global_alignment_score(
+    query_profile: &Profile,
+    database_sequence: &[u8],
+    open_cost: i32,
+    gap_extend_cost: i32,
+) -> i32 {
     unsafe {
-        let result = parasail_sg_striped_profile_sat(**query_profile,
-                                                     database_sequence.as_ptr(),
-                                                     database_sequence.len() as c_int,
-                                                     open_cost,
-                                                     gap_extend_cost);
+        let result = parasail_sg_striped_profile_sat(
+            **query_profile,
+            database_sequence.as_ptr(),
+            database_sequence.len() as c_int,
+            open_cost,
+            gap_extend_cost,
+        );
+        let score = (*result).score;
+        parasail_result_free(result);
+        score
+    }
+}
+
+/// Provides a score for semi-global pairwise alignment using a vectorized algorithm. Does not penalize gaps at beginning and end of s1/query only.
+pub fn semi_global_qx_alignment_score(
+    query_profile: &Profile,
+    database_sequence: &[u8],
+    open_cost: i32,
+    gap_extend_cost: i32,
+) -> i32 {
+    unsafe {
+        let result = parasail_sg_qx_striped_profile_sat(
+            **query_profile,
+            database_sequence.as_ptr(),
+            database_sequence.len() as c_int,
+            open_cost,
+            gap_extend_cost,
+        );
         let score = (*result).score;
         parasail_result_free(result);
         score
@@ -107,18 +134,20 @@ pub fn semi_global_alignment_score(query_profile: &Profile,
 /// let reference = b"AAAAAAAAAACCCCCCCCCCGGGGGGGGGGTTTTT";
 /// assert_eq!(35, local_alignment_score(&profile_ident, reference, 1, 1));
 /// ```
-pub fn local_alignment_score(query_profile: &Profile,
-                             database_sequence: &[u8],
-                             open_cost: i32,
-                             gap_extend_cost: i32)
-                             -> i32 {
-
+pub fn local_alignment_score(
+    query_profile: &Profile,
+    database_sequence: &[u8],
+    open_cost: i32,
+    gap_extend_cost: i32,
+) -> i32 {
     unsafe {
-        let result = parasail_sw_striped_profile_sat(**query_profile,
-                                                     database_sequence.as_ptr(),
-                                                     database_sequence.len() as c_int,
-                                                     open_cost,
-                                                     gap_extend_cost);
+        let result = parasail_sw_striped_profile_sat(
+            **query_profile,
+            database_sequence.as_ptr(),
+            database_sequence.len() as c_int,
+            open_cost,
+            gap_extend_cost,
+        );
         let score = (*result).score;
         parasail_result_free(result);
         score
@@ -143,21 +172,23 @@ pub fn local_alignment_score(query_profile: &Profile,
 /// let reference = b"AAAAAAAAAACCCCCCCCCCGGGGGGGGGGTTTTT";
 /// assert_eq!(35, local_alignment_score_no_profile(query, reference, 1, 1, &identity_matrix));
 /// ```
-pub fn local_alignment_score_no_profile(query: &[u8],
-                                        database_sequence: &[u8],
-                                        open_cost: i32,
-                                        gap_extend_cost: i32,
-                                        sub_matrix: &Matrix)
-                                        -> i32 {
-
+pub fn local_alignment_score_no_profile(
+    query: &[u8],
+    database_sequence: &[u8],
+    open_cost: i32,
+    gap_extend_cost: i32,
+    sub_matrix: &Matrix,
+) -> i32 {
     unsafe {
-        let result = parasail_sw_striped_sat(query.as_ptr(),
-                                             query.len() as c_int,
-                                             database_sequence.as_ptr(),
-                                             database_sequence.len() as c_int,
-                                             open_cost,
-                                             gap_extend_cost,
-                                             **sub_matrix);
+        let result = parasail_sw_striped_sat(
+            query.as_ptr(),
+            query.len() as c_int,
+            database_sequence.as_ptr(),
+            database_sequence.len() as c_int,
+            open_cost,
+            gap_extend_cost,
+            **sub_matrix,
+        );
         let score = (*result).score;
         parasail_result_free(result);
         score
@@ -202,21 +233,64 @@ pub struct AlignmentStats {
 /// assert_eq!(17, stats.query_end);
 /// assert_eq!(23, stats.ref_end);
 /// ```
-pub fn semi_global_alignment_stats(query_sequence: &[u8],
-                                   database_sequence: &[u8],
-                                   open_cost: i32,
-                                   gap_extend_cost: i32,
-                                   substitution_matrix: &::matrix::Matrix)
-                                   -> AlignmentStats {
-
+pub fn semi_global_alignment_stats(
+    query_sequence: &[u8],
+    database_sequence: &[u8],
+    open_cost: i32,
+    gap_extend_cost: i32,
+    substitution_matrix: &::matrix::Matrix,
+) -> AlignmentStats {
     unsafe {
-        let result = parasail_sg_stats_striped_sat(query_sequence.as_ptr(),
-                                                   query_sequence.len() as c_int,
-                                                   database_sequence.as_ptr(),
-                                                   database_sequence.len() as c_int,
-                                                   open_cost,
-                                                   gap_extend_cost,
-                                                   **substitution_matrix);
+        let result = parasail_sg_stats_striped_sat(
+            query_sequence.as_ptr(),
+            query_sequence.len() as c_int,
+            database_sequence.as_ptr(),
+            database_sequence.len() as c_int,
+            open_cost,
+            gap_extend_cost,
+            **substitution_matrix,
+        );
+
+        let score = parasail_result_get_score(result) as i64;
+        let num_matches = parasail_result_get_matches(result) as u64;
+        let num_subs = parasail_result_get_similar(result) as u64;
+        let align_len = parasail_result_get_length(result) as usize;
+
+        // calculate start from end
+        let query_end = (*result).end_query as usize + 1;
+        let ref_end = (*result).end_ref as usize + 1;
+
+        parasail_result_free(result);
+
+        AlignmentStats {
+            score: score,
+            num_matches: num_matches,
+            num_positive_subs: num_subs,
+            align_length: align_len,
+            query_end: query_end,
+            ref_end: ref_end,
+        }
+    }
+}
+
+/// Provides statistics for semi-global pairwise alignment using a vectorized algorithm. Does not penalize gaps at beginning and end of s1/query only
+pub fn semi_global_qx_alignment_stats(
+    query_sequence: &[u8],
+    database_sequence: &[u8],
+    open_cost: i32,
+    gap_extend_cost: i32,
+    substitution_matrix: &::matrix::Matrix,
+) -> AlignmentStats {
+    unsafe {
+        let result = parasail_sg_qx_stats_striped_sat(
+            query_sequence.as_ptr(),
+            query_sequence.len() as c_int,
+            database_sequence.as_ptr(),
+            database_sequence.len() as c_int,
+            open_cost,
+            gap_extend_cost,
+            **substitution_matrix,
+        );
 
         let score = parasail_result_get_score(result) as i64;
         let num_matches = parasail_result_get_matches(result) as u64;
@@ -258,21 +332,23 @@ pub fn semi_global_alignment_stats(query_sequence: &[u8],
 /// assert_eq!(17, stats.query_end);
 /// assert_eq!(23, stats.ref_end);
 /// ```
-pub fn local_alignment_stats(query_sequence: &[u8],
-                             database_sequence: &[u8],
-                             open_cost: i32,
-                             gap_extend_cost: i32,
-                             substitution_matrix: &::matrix::Matrix)
-                             -> AlignmentStats {
-
+pub fn local_alignment_stats(
+    query_sequence: &[u8],
+    database_sequence: &[u8],
+    open_cost: i32,
+    gap_extend_cost: i32,
+    substitution_matrix: &::matrix::Matrix,
+) -> AlignmentStats {
     unsafe {
-        let result = parasail_sw_stats_striped_sat(query_sequence.as_ptr(),
-                                                   query_sequence.len() as c_int,
-                                                   database_sequence.as_ptr(),
-                                                   database_sequence.len() as c_int,
-                                                   open_cost,
-                                                   gap_extend_cost,
-                                                   **substitution_matrix);
+        let result = parasail_sw_stats_striped_sat(
+            query_sequence.as_ptr(),
+            query_sequence.len() as c_int,
+            database_sequence.as_ptr(),
+            database_sequence.len() as c_int,
+            open_cost,
+            gap_extend_cost,
+            **substitution_matrix,
+        );
 
         let score = parasail_result_get_score(result) as i64;
         let num_matches = parasail_result_get_matches(result) as u64;
@@ -312,12 +388,14 @@ fn test_semiglobal_stats() {
     assert_eq!(17, stats.query_end);
     assert_eq!(23, stats.ref_end);
 
-    assert_eq!(str::from_utf8(query).unwrap(),
-               str::from_utf8(&query[stats.query_end - stats.align_length..stats.query_end])
-                   .unwrap());
-    assert_eq!(str::from_utf8(query).unwrap(),
-               str::from_utf8(&reference[stats.ref_end - stats.align_length..stats.ref_end])
-                   .unwrap());
+    assert_eq!(
+        str::from_utf8(query).unwrap(),
+        str::from_utf8(&query[stats.query_end - stats.align_length..stats.query_end]).unwrap()
+    );
+    assert_eq!(
+        str::from_utf8(query).unwrap(),
+        str::from_utf8(&reference[stats.ref_end - stats.align_length..stats.ref_end]).unwrap()
+    );
 
     // these two test cases "borrowed" mutably from rust-bio
     let x = b"ACCGTGGAT";
