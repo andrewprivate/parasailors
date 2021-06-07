@@ -7,7 +7,7 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 
 use parasail_sys::{parasail_profile, parasail_profile_create_sat, parasail_profile_free};
-use matrix::Matrix;
+use crate::matrix::Matrix;
 
 /// A container for a parasail query profile. Can be reused to re-align the same sequence against multiple references.
 ///
@@ -41,7 +41,7 @@ impl<'a> Drop for Profile<'a> {
 impl<'a> Deref for Profile<'a> {
     type Target = *mut parasail_profile;
 
-    fn deref(&self) -> &(*mut parasail_profile) {
+    fn deref(&self) -> &*mut parasail_profile {
         &self.internal_rep
     }
 }
