@@ -8,8 +8,9 @@ repository = "https://github.com/dikaiosune/parasailors"
 readme = "README.md"
 keywords = ["simd", "bioinformatics", "sequence", "alignment"]
 description = "SIMD accelerated pairwise genetic sequence alignment."
+edition = "2018"
 
 [dependencies]
 libc = "0.2.7"
 # parasail-sys = "0.2.5"
-parasail-sys = { path = "../parasail-sys" } 
+parasail-sys = { path = "../parasail-sys" }

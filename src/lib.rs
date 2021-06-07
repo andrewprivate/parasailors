@@ -107,7 +107,7 @@
 //! ```
 
 extern crate libc;
-extern crate parasail_sys;
+// extern crate parasail_sys;
 
 mod align;
 mod matrix;

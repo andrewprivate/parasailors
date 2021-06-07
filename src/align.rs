@@ -5,15 +5,21 @@
 
 use libc::c_int;
 
-use matrix::Matrix;
+use crate::matrix::Matrix;
 use parasail_sys::{
     parasail_nw_striped_profile_sat, parasail_result_free, parasail_result_get_length,
     parasail_result_get_matches, parasail_result_get_score, parasail_result_get_similar,
-    parasail_sg_qx_stats_striped_sat, parasail_sg_qx_striped_profile_sat,
+    parasail_sg_qx_striped_profile_sat,
     parasail_sg_stats_striped_sat, parasail_sg_striped_profile_sat, parasail_sw_stats_striped_sat,
     parasail_sw_striped_profile_sat, parasail_sw_striped_sat,
+    parasail_traceback_free, parasail_result_get_traceback,parasail_sg_trace_striped_sat,
+    parasail_sg_dx_trace_striped_sat, parasail_sg_dx_stats_striped_sat,
+    // parasail_sg_qx_stats_striped_sat, parasail_sg_qx_trace_striped_sat,
 };
-use profile::Profile;
+use crate::profile::Profile;
+// use crate::MatrixType;
+// use std::os::raw::c_char;
+use std::ffi::{CString, CStr};
 
 /// Provides a score for global pairwise alignment, using a vectorized version of [Needleman-Wunsch](https://en.wikipedia.org/wiki/Needleman%E2%80%93Wunsch_algorithm).
 ///
@@ -211,6 +217,28 @@ pub struct AlignmentStats {
     pub ref_end: usize,
 }
 
+/// Stores statistics and traceback strings from an alignment.
+pub struct TracebackResults {
+    /// The score according to the substitution matrix and gap penalty scheme used.
+    pub score: i64,
+    /// Number of exactly matching characters.
+    // pub num_matches: u64,
+    // /// Number of positively scoring character substitutions (this is the same as num_matches when used an identity matrix).
+    // pub num_positive_subs: u64,
+    // /// The length of the found alignment.
+    // pub align_length: usize,
+    /// The starting index (0-based) of the alignment in the query (usually 0).
+    pub query_end: usize,
+    /// The starting index (0-based) of the alignment in the reference.
+    pub ref_end: usize,
+    /// String representing query sequence in traceback
+    pub query_trace: String,
+    /// String representing query sequence in traceback
+    pub comp_trace: String,
+    /// String representing query sequence in traceback
+    pub ref_trace: String,
+}
+
 /// Provides statistics for semi-global pairwise alignment using a vectorized algorithm.
 ///
 /// This results in a series of statistics, including a score that corresponds to a global alignment for the query sequence and a local alignment for the reference sequence. This is particularly useful when checking for the presence of an NGS read in a much longer reference sequence. This behaves like a global alignment, except that gaps at the start or end of the reference sequence's alignment are ignored.
@@ -238,7 +266,7 @@ pub fn semi_global_alignment_stats(
     database_sequence: &[u8],
     open_cost: i32,
     gap_extend_cost: i32,
-    substitution_matrix: &::matrix::Matrix,
+    substitution_matrix: &Matrix,
 ) -> AlignmentStats {
     unsafe {
         let result = parasail_sg_stats_striped_sat(
@@ -279,7 +307,7 @@ pub fn semi_global_qx_alignment_stats(
     database_sequence: &[u8],
     open_cost: i32,
     gap_extend_cost: i32,
-    substitution_matrix: &::matrix::Matrix,
+    substitution_matrix: &Matrix,
 ) -> AlignmentStats {
     unsafe {
         let result = parasail_sg_qx_stats_striped_sat(
@@ -314,6 +342,122 @@ pub fn semi_global_qx_alignment_stats(
     }
 }
 
+/// Provides traceback for semi-global pairwise alignment using a vectorized algorithm. Does not penalize gaps at beginning and end of s2/reference only
+pub fn semi_global_dx_traceback(
+    query_sequence: &[u8],
+    database_sequence: &[u8],
+    open_cost: i32,
+    gap_extend_cost: i32,
+    substitution_matrix: &Matrix,
+) -> TracebackResults {
+    unsafe {
+        let result = parasail_sg_dx_trace_striped_sat(
+            query_sequence.as_ptr(),
+            query_sequence.len() as c_int,
+            database_sequence.as_ptr(),
+            database_sequence.len() as c_int,
+            open_cost,
+            gap_extend_cost,
+            **substitution_matrix,
+        );
+
+        let score = parasail_result_get_score(result) as i64;
+
+        // calculate start from end
+        let query_end = (*result).end_query as usize + 1;
+        let ref_end = (*result).end_ref as usize + 1;
+
+        let traceback = parasail_result_get_traceback(
+            result,
+            CString::new(query_sequence).unwrap().into_raw(),
+            query_sequence.len() as c_int,
+            CString::new(database_sequence).unwrap().into_raw(),
+            database_sequence.len() as c_int,
+            **substitution_matrix,
+            *CString::new("|").unwrap().into_raw(),
+            *CString::new("|").unwrap().into_raw(),
+            *CString::new(":").unwrap().into_raw(),
+        );
+
+        let query_str = CStr::from_ptr((*traceback).query).to_str().unwrap();
+        let query_trace = String::from(query_str);
+        let comp_str = CStr::from_ptr((*traceback).comp).to_str().unwrap();
+        let comp_trace = String::from(comp_str);
+        let ref_str = CStr::from_ptr((*traceback).ref_).to_str().unwrap();
+        let ref_trace = String::from(ref_str);
+
+        parasail_traceback_free(traceback);
+        parasail_result_free(result);
+
+        TracebackResults {
+            score,
+            query_end,
+            ref_end,
+            query_trace,
+            comp_trace,
+            ref_trace,
+        }
+    }
+}
+
+/// Provides traceback for semi-global pairwise alignment using a vectorized algorithm. Does not penalize gaps at beginning and end of either sequence
+pub fn semi_global_traceback(
+    query_sequence: &[u8],
+    database_sequence: &[u8],
+    open_cost: i32,
+    gap_extend_cost: i32,
+    substitution_matrix: &Matrix,
+) -> TracebackResults {
+    unsafe {
+        let result = parasail_sg_trace_striped_sat(
+            query_sequence.as_ptr(),
+            query_sequence.len() as c_int,
+            database_sequence.as_ptr(),
+            database_sequence.len() as c_int,
+            open_cost,
+            gap_extend_cost,
+            **substitution_matrix,
+        );
+
+        let score = parasail_result_get_score(result) as i64;
+
+        // calculate start from end
+        let query_end = (*result).end_query as usize + 1;
+        let ref_end = (*result).end_ref as usize + 1;
+
+        let traceback = parasail_result_get_traceback(
+            result,
+            CString::new(query_sequence).unwrap().into_raw(),
+            query_sequence.len() as c_int,
+            CString::new(database_sequence).unwrap().into_raw(),
+            database_sequence.len() as c_int,
+            **substitution_matrix,
+            *CString::new("|").unwrap().into_raw(),
+            *CString::new("|").unwrap().into_raw(),
+            *CString::new(":").unwrap().into_raw(),
+        );
+        // println!("{:?}", traceback);
+        let query_str = CStr::from_ptr((*traceback).query).to_str().unwrap();
+        let query_trace = String::from(query_str);
+        let comp_str = CStr::from_ptr((*traceback).comp).to_str().unwrap();
+        let comp_trace = String::from(comp_str);
+        let ref_str = CStr::from_ptr((*traceback).ref_).to_str().unwrap();
+        let ref_trace = String::from(ref_str);
+
+        parasail_traceback_free(traceback);
+        parasail_result_free(result);
+
+        TracebackResults {
+            score,
+            query_end,
+            ref_end,
+            query_trace,
+            comp_trace,
+            ref_trace,
+        }
+    }
+}
+
 /// Provides statistics for local pairwise alignment using a vectorized algorithm.
 ///
 /// # Examples
@@ -337,7 +481,7 @@ pub fn local_alignment_stats(
     database_sequence: &[u8],
     open_cost: i32,
     gap_extend_cost: i32,
-    substitution_matrix: &::matrix::Matrix,
+    substitution_matrix: &Matrix,
 ) -> AlignmentStats {
     unsafe {
         let result = parasail_sw_stats_striped_sat(
@@ -374,7 +518,7 @@ pub fn local_alignment_stats(
 
 #[test]
 fn test_semiglobal_stats() {
-    use matrix::{Matrix, MatrixType};
+    use crate::matrix::{Matrix, MatrixType};
     use std::str;
     let identity_matrix = Matrix::new(MatrixType::Identity);
     let query = b"AAAACCCCCCCCCCGGG";

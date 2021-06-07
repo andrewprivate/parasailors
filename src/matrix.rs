@@ -9,7 +9,7 @@ use std::ops::Deref;
 // use libc::{c_int, c_char};
 
 use parasail_sys::{parasail_matrix, parasail_matrix_create, parasail_matrix_free,
-                   parasail_matrix_lookup};
+                   parasail_matrix_lookup, parasail_matrix_set_value};
 
 /// A substitution matrix to use when aligning DNA or protein. Can be reused in many profiles.
 pub struct Matrix {
@@ -32,6 +32,13 @@ impl Matrix {
     /// let blosum62 = Matrix::new(MatrixType::Blosum62);
     /// let pam120 = Matrix::new(MatrixType::Pam120);
     /// ```
+    // pub fn from_file(filename: &str) -> Self {
+    //     unsafe {
+    //         c_name = CString::from(filename).unwrap().into_raw();
+    //         parasail_matrix_from_file(c_name)
+    //     }
+    // }
+
     pub fn new(matrix_type: MatrixType) -> Self {
         unsafe {
             // we can pass this pointer because it will outlive this unsafe block
@@ -55,8 +62,31 @@ impl Matrix {
                                                  of the code that caused this error.");
                     parasail_matrix_create(alphabet.as_ptr(), 1, -1)
                 }
+                MatrixType::AdaptorSearch => {
+                    let alphabet = &CString::new("ACGTRYN")
+                        .expect("An internal error has occurred (creating \
+                                                 identity matrix). Please file an issue at \
+                                                 https://github.\
+                                                 com/dikaiosune/parasailors/issues with a sample \
+                                                 of the code that caused this error.");
+                    let matrix = parasail_matrix_create(alphabet.as_ptr(), 1, -2);
+                    for i in 0 .. 7 {
+                        parasail_matrix_set_value(matrix, i, 6, 1);
+                        parasail_matrix_set_value(matrix, 6, i, 1);
+                        if i % 2 == 0 {
+                            parasail_matrix_set_value(matrix, i, 4, 1);
+                            parasail_matrix_set_value(matrix, 4, i, 1);
+                        } else {
+                            parasail_matrix_set_value(matrix, i, 5, 1);
+                            parasail_matrix_set_value(matrix, 5, i, 1);
+                        }
+                    }
+                    matrix
+                }
                 _ => {
                     let lookup_name = match matrix_type {
+                        MatrixType::DNAFull => "dnafull",
+                        MatrixType::Nuc44 => "nuc44",
                         MatrixType::Blosum100 => "blosum100",
                         MatrixType::Blosum30 => "blosum30",
                         MatrixType::Blosum35 => "blosum35",
@@ -149,7 +179,7 @@ impl Matrix {
 impl Deref for Matrix {
     type Target = *const parasail_matrix;
 
-    fn deref(&self) -> &(*const parasail_matrix) {
+    fn deref(&self) -> &*const parasail_matrix {
         &self.internal_rep
     }
 }
@@ -173,6 +203,12 @@ pub enum MatrixType {
     Identity,
     /// An identity matrix which awards 1 score for each match and penalizes -1 for each mismatch.
     IdentityWithPenalty,
+    /// A matrix for aligner adaptor sequences with random nucleotides to NGS or Third Generation reads
+    AdaptorSearch,
+    /// This matrix was created by Todd Lowe   12/10/92
+    DNAFull,
+    /// Converted from ftp://ftp.cbi.pku.edu.cn/pub/software/blast/matrices/NUC.4.4.
+    Nuc44,
     /// The [BLOSUM](https://en.wikipedia.org/wiki/BLOSUM) 100 substitution matrix.
     Blosum100,
     /// The [BLOSUM](https://en.wikipedia.org/wiki/BLOSUM) 30 substitution matrix.
