@@ -13,8 +13,8 @@ use parasail_sys::{
     parasail_sg_stats_striped_sat, parasail_sg_striped_profile_sat, parasail_sw_stats_striped_sat,
     parasail_sw_striped_profile_sat, parasail_sw_striped_sat,
     parasail_traceback_free, parasail_result_get_traceback,parasail_sg_trace_striped_sat,
-    parasail_sg_dx_trace_striped_sat, parasail_sg_dx_stats_striped_sat,
-    // parasail_sg_qx_stats_striped_sat, parasail_sg_qx_trace_striped_sat,
+    parasail_sg_dx_trace_striped_sat, // parasail_sg_dx_stats_striped_sat,
+    parasail_sg_qx_stats_striped_sat, // parasail_sg_qx_trace_striped_sat,
 };
 use crate::profile::Profile;
 // use crate::MatrixType;
