@@ -13,8 +13,8 @@ use parasail_sys::{
     parasail_sg_stats_striped_sat, parasail_sg_striped_profile_sat, parasail_sw_stats_striped_sat,
     parasail_sw_striped_profile_sat, parasail_sw_striped_sat,
     parasail_traceback_free, parasail_result_get_traceback,parasail_sg_trace_striped_sat,
-    parasail_sg_dx_trace_striped_sat, parasail_sg_dx_stats_striped_sat,
-    // parasail_sg_qx_stats_striped_sat, parasail_sg_qx_trace_striped_sat,
+    parasail_sg_dx_trace_striped_sat, // parasail_sg_dx_stats_striped_sat,
+    parasail_sg_qx_stats_striped_sat, // parasail_sg_qx_trace_striped_sat,
 };
 use crate::profile::Profile;
 // use crate::MatrixType;
@@ -367,18 +367,33 @@ pub fn semi_global_dx_traceback(
         let query_end = (*result).end_query as usize + 1;
         let ref_end = (*result).end_ref as usize + 1;
 
+        // Initialize CStrings
+        let c_query_seq = CString::new(query_sequence).unwrap().into_raw();
+        let c_db_seq = CString::new(database_sequence).unwrap().into_raw();
+        let match_char = CString::new("|").unwrap().into_raw();
+        let positive_mismatch_char = CString::new("|").unwrap().into_raw();
+        let negative_mismatch_char = CString::new(":").unwrap().into_raw();
+
         let traceback = parasail_result_get_traceback(
             result,
-            CString::new(query_sequence).unwrap().into_raw(),
+            c_query_seq,
             query_sequence.len() as c_int,
-            CString::new(database_sequence).unwrap().into_raw(),
+            c_db_seq,
             database_sequence.len() as c_int,
             **substitution_matrix,
-            *CString::new("|").unwrap().into_raw(),
-            *CString::new("|").unwrap().into_raw(),
-            *CString::new(":").unwrap().into_raw(),
+            *match_char,
+            *positive_mismatch_char,
+            *negative_mismatch_char,
         );
 
+        // Reclaim CStrings to allow dropping
+        let _c_query_seq = CString::from_raw(c_query_seq);
+        let _c_db_seq = CString::from_raw(c_db_seq);
+        let _match_char = CString::from_raw(match_char);
+        let _positive_mismatch_char = CString::from_raw(positive_mismatch_char);
+        let _negative_mismatch_char = CString::from_raw(negative_mismatch_char);
+
+        // Convert results in the traceback opaque point to rust Strings
         let query_str = CStr::from_ptr((*traceback).query).to_str().unwrap();
         let query_trace = String::from(query_str);
         let comp_str = CStr::from_ptr((*traceback).comp).to_str().unwrap();
@@ -425,18 +440,34 @@ pub fn semi_global_traceback(
         let query_end = (*result).end_query as usize + 1;
         let ref_end = (*result).end_ref as usize + 1;
 
+        // Initialize CStrings
+        let c_query_seq = CString::new(query_sequence).unwrap().into_raw();
+        let c_db_seq = CString::new(database_sequence).unwrap().into_raw();
+        let match_char = CString::new("|").unwrap().into_raw();
+        let positive_mismatch_char = CString::new("|").unwrap().into_raw();
+        let negative_mismatch_char = CString::new(":").unwrap().into_raw();
+
+        // Convert results in the traceback opaque point to rust Strings
         let traceback = parasail_result_get_traceback(
             result,
-            CString::new(query_sequence).unwrap().into_raw(),
+            c_query_seq,
             query_sequence.len() as c_int,
-            CString::new(database_sequence).unwrap().into_raw(),
+            c_db_seq,
             database_sequence.len() as c_int,
             **substitution_matrix,
-            *CString::new("|").unwrap().into_raw(),
-            *CString::new("|").unwrap().into_raw(),
-            *CString::new(":").unwrap().into_raw(),
+            *match_char,
+            *positive_mismatch_char,
+            *negative_mismatch_char,
         );
-        // println!("{:?}", traceback);
+
+
+        // Reclaim CStrings to allow dropping
+        let _c_query_seq = CString::from_raw(c_query_seq);
+        let _c_db_seq = CString::from_raw(c_db_seq);
+        let _match_char = CString::from_raw(match_char);
+        let _positive_mismatch_char = CString::from_raw(positive_mismatch_char);
+        let _negative_mismatch_char = CString::from_raw(negative_mismatch_char);
+
         let query_str = CStr::from_ptr((*traceback).query).to_str().unwrap();
         let query_trace = String::from(query_str);
         let comp_str = CStr::from_ptr((*traceback).comp).to_str().unwrap();
