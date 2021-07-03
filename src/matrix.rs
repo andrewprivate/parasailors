@@ -38,7 +38,6 @@ impl Matrix {
     //         parasail_matrix_from_file(c_name)
     //     }
     // }
-
     pub fn new(matrix_type: MatrixType) -> Self {
         unsafe {
             // we can pass this pointer because it will outlive this unsafe block
@@ -173,6 +172,23 @@ impl Matrix {
             }
         }
     }
+
+    /// Create a custom matrix
+    pub fn create(alphabet_input: String, match_score: i64, mismatch_penalty: i64) -> Self {
+        unsafe {
+            let alphabet = &CString::new(alphabet_input).expect("An internal error has occurred (creating \
+                identity matrix). Please file an issue at \
+                https://github.\
+                com/dikaiosune/parasailors/issues with a sample \
+                of the code that caused this error.");
+
+            let matrix: *const parasail_matrix = parasail_matrix_create(alphabet.as_ptr(), match_score as ::std::os::raw::c_int, mismatch_penalty as ::std::os::raw::c_int);
+            Matrix {
+                internal_rep: matrix,
+                matrix_type: MatrixType::Custom,
+            }
+        }
+    }
 }
 
 #[doc(hidden)]
@@ -192,6 +208,10 @@ impl Drop for Matrix {
         }
 
         if let MatrixType::IdentityWithPenalty = self.matrix_type {
+            unsafe { parasail_matrix_free(self.internal_rep as *mut parasail_matrix) }
+        }
+
+        if let MatrixType::Custom = self.matrix_type {
             unsafe { parasail_matrix_free(self.internal_rep as *mut parasail_matrix) }
         }
     }
@@ -339,4 +359,6 @@ pub enum MatrixType {
     Pam80,
     /// The [PAM](https://en.wikipedia.org/wiki/Point_accepted_mutation) 90 substitution matrix.
     Pam90,
+    /// Custom matrix
+    Custom
 }
