@@ -15,6 +15,10 @@ use parasail_sys::{
     parasail_traceback_free, parasail_result_get_traceback,parasail_sg_trace_striped_sat,
     parasail_sg_dx_trace_striped_sat, // parasail_sg_dx_stats_striped_sat,
     parasail_sg_qx_stats_striped_sat, // parasail_sg_qx_trace_striped_sat,
+    parasail_sg_trace_scan_sat,
+    parasail_result_get_cigar,
+    parasail_cigar_free,
+    parasail_cigar_decode
 };
 use crate::profile::Profile;
 // use crate::MatrixType;
@@ -53,6 +57,7 @@ pub fn global_alignment_score(
             open_cost,
             gap_extend_cost,
         );
+        
         let score = (*result).score;
         parasail_result_free(result);
         score
@@ -236,8 +241,33 @@ pub struct TracebackResults {
     /// String representing query sequence in traceback
     pub comp_trace: String,
     /// String representing query sequence in traceback
-    pub ref_trace: String,
+    pub ref_trace: String
 }
+
+/// Stores statistics and traceback strings from an alignment with SAM Cigar.
+pub struct TracebackResultsWithCigar {
+    /// The score according to the substitution matrix and gap penalty scheme used.
+    pub score: i64,
+    /// Number of exactly matching characters.
+    // pub num_matches: u64,
+    // /// Number of positively scoring character substitutions (this is the same as num_matches when used an identity matrix).
+    // pub num_positive_subs: u64,
+    // /// The length of the found alignment.
+    // pub align_length: usize,
+    /// The starting index (0-based) of the alignment in the query (usually 0).
+    pub query_end: usize,
+    /// The starting index (0-based) of the alignment in the reference.
+    pub ref_end: usize,
+    /// String representing query sequence in traceback
+    pub query_trace: String,
+    /// String representing query sequence in traceback
+    pub comp_trace: String,
+    /// String representing query sequence in traceback
+    pub ref_trace: String,
+    /// String with SAM Cigar data
+    pub cigar_trace: String
+}
+
 
 /// Provides statistics for semi-global pairwise alignment using a vectorized algorithm.
 ///
@@ -340,6 +370,98 @@ pub fn semi_global_qx_alignment_stats(
             ref_end: ref_end,
         }
     }
+}
+
+/// For isOnClust-rust
+pub fn semi_global_alignment_trace_scan_sat_cigar(
+    query_sequence: &[u8],
+    database_sequence: &[u8],
+    open_cost: i32,
+    gap_extend_cost: i32,
+    substitution_matrix: &Matrix,
+) -> TracebackResultsWithCigar {
+    unsafe {
+        let result = parasail_sg_trace_scan_sat(
+            query_sequence.as_ptr(),
+            query_sequence.len() as c_int,
+            database_sequence.as_ptr(),
+            database_sequence.len() as c_int,
+            open_cost,
+            gap_extend_cost,
+            **substitution_matrix,
+        );
+
+        let score = parasail_result_get_score(result) as i64;
+
+
+        // calculate start from end
+        let query_end = (*result).end_query as usize + 1;
+        let ref_end = (*result).end_ref as usize + 1;
+
+        // Initialize CStrings
+        let c_query_seq = CString::new(query_sequence).unwrap().into_raw();
+        let c_db_seq = CString::new(database_sequence).unwrap().into_raw();
+        let match_char = CString::new("|").unwrap().into_raw();
+        let positive_mismatch_char = CString::new("|").unwrap().into_raw();
+        let negative_mismatch_char = CString::new(":").unwrap().into_raw();
+
+
+        let traceback = parasail_result_get_traceback(
+            result,
+            c_query_seq,
+            query_sequence.len() as c_int,
+            c_db_seq,
+            database_sequence.len() as c_int,
+            **substitution_matrix,
+            *match_char,
+            *positive_mismatch_char,
+            *negative_mismatch_char,
+        );
+
+        // Reclaim CStrings to allow dropping
+        let _c_query_seq = CString::from_raw(c_query_seq);
+        let _c_db_seq = CString::from_raw(c_db_seq);
+        let _match_char = CString::from_raw(match_char);
+        let _positive_mismatch_char = CString::from_raw(positive_mismatch_char);
+        let _negative_mismatch_char = CString::from_raw(negative_mismatch_char);
+        
+     
+
+        // Convert results in the traceback opaque point to rust Strings
+        let query_str = CStr::from_ptr((*traceback).query).to_str().unwrap();
+        let query_trace = String::from(query_str);
+        let comp_str = CStr::from_ptr((*traceback).comp).to_str().unwrap();
+        let comp_trace = String::from(comp_str);
+        let ref_str = CStr::from_ptr((*traceback).ref_).to_str().unwrap();
+        let ref_trace = String::from(ref_str);
+
+        let cigar_result = parasail_result_get_cigar(result,
+            query_str.as_ptr(),
+            query_str.len() as c_int,
+            ref_str.as_ptr(),
+            ref_str.len() as c_int,
+            **substitution_matrix
+        );
+       
+
+        let cigar_str = CStr::from_ptr(parasail_cigar_decode(cigar_result)).to_str().unwrap();
+        let cigar_trace = String::from(cigar_str);
+        
+        parasail_cigar_free(cigar_result);
+        parasail_traceback_free(traceback);
+        parasail_result_free(result);
+
+        TracebackResultsWithCigar {
+            score,
+            query_end,
+            ref_end,
+            query_trace,
+            comp_trace,
+            ref_trace,
+            cigar_trace
+        }
+    }
+    
 }
 
 /// Provides traceback for semi-global pairwise alignment using a vectorized algorithm. Does not penalize gaps at beginning and end of s2/reference only

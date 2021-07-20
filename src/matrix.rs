@@ -174,7 +174,7 @@ impl Matrix {
     }
 
     /// Create a custom matrix
-    pub fn create(alphabet_input: String, match_score: i64, mismatch_penalty: i64) -> Self {
+    pub fn create(alphabet_input: &str, match_score: i64, mismatch_penalty: i64) -> Self {
         unsafe {
             let alphabet = &CString::new(alphabet_input).expect("An internal error has occurred (creating \
                 identity matrix). Please file an issue at \
